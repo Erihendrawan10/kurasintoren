@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Management App</title>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f8fafc;
+        }
+        
+        .highlight {
+            background-color: #f0fdf4;
+            border-left: 4px solid #4ade80;
+        }
+        
+        #customerTable tr:hover {
+            background-color: #f1f5f9;
+        }
+        
+        @media (max-width: 768px) {
+            .responsive-table th, .responsive-table td {
+                padding: 0.5rem;
+                font-size: 0.875rem;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <div class="bg-white rounded-xl shadow-md overflow-hidden p-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Customer Management</h1>
+            
+            <div class="mb-8">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700">Add New Customer</h2>
+                <form id="customerForm" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label for="name" class="block text-sm font-medium text-gray-700 mb-1">Customer Name</label>
+                        <input type="text" id="name" name="name" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+                    </div>
+                    
+                    <div>
+                        <label for="whatsapp" class="block text-sm font-medium text-gray-700 mb-1">WhatsApp Number</label>
+                        <input type="tel" id="whatsapp" name="whatsapp" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+                    </div>
+                    
+                    <div>
+                        <label for="orderDate" class="block text-sm font-medium text-gray-700 mb-1">Order Date</label>
+                        <input type="date" id="orderDate" name="orderDate" required class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition">
+                    </div>
+                    
+                    <div class="md:col-span-3">
+                        <button type="submit" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-6 rounded-md transition duration-300 w-full md:w-auto">
+                            Add Customer
+                        </button>
+                    </div>
+                </form>
+            </div>
+            
+            <div class="mb-4">
+                <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search Customers</label>
+                <div class="relative">
+                    <input type="text" id="search" placeholder="Search by name, WhatsApp or date..." class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-green-500 focus:border-green-500 outline-none transition pl-10">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                        </svg>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table id="customerTable" class="w-full responsive-table">
+                    <thead class="bg-gray-100">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">WhatsApp</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Customer data will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Local storage operations
+        const STORAGE_KEY = 'customerData';
+        
+        function getCustomersFromStorage() {
+            const customers = localStorage.getItem(STORAGE_KEY);
+            return customers ? JSON.parse(customers) : [];
+        }
+        
+        function saveCustomersToStorage(customers) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+        }
+        
+        // Google Sheets integration
+        const scriptUrl = 'https://script.google.com/macros/s/AKfycby7IRoUedC3OaUDj-RnfIvhU8o49qYVQQjSEbwD6izNiszO4V_RikuD773I2opBxj0J/exec'; // You need to replace this with your actual Google Apps Script URL
+        
+        async function syncWithGoogleSheets(action, customerData) {
+            try {
+                const response = await fetch(scriptUrl, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        action: action,
+                        data: customerData
+                    }),
+                });
+                
+                const result = await response.json();
+                return result.success;
+            } catch (error) {
+                console.error('Error syncing with Google Sheets:', error);
+                return false;
+            }
+        }
+        
+        // Customer management functions
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            return `${day}/${month}/${year}`;
+        }
+        
+        function compareDates(selectedDate, existingDate) {
+            if (!existingDate) return selectedDate;
+            
+            const [d1, m1, y1] = selectedDate.split('/').map(Number);
+            const [d2, m2, y2] = existingDate.split('/').map(Number);
+            
+            const date1 = new Date(y1, m1 - 1, d1);
+            const date2 = new Date(y2, m2 - 1, d2);
+            
+            return date1 > date2 ? selectedDate : existingDate;
+        }
+        
+        function addOrUpdateCustomer(newCustomer) {
+            let customers = getCustomersFromStorage();
+            
+            // Format the date
+            const formattedDate = formatDate(newCustomer.orderDate);
+            newCustomer.orderDate = formattedDate;
+            
+            // Check for existing customer with the same WhatsApp number
+            const existingIndex = customers.findIndex(
+                c => c.whatsapp === newCustomer.whatsapp
+            );
+            
+            if (existingIndex !== -1) {
+                // Customer exists - update data
+                const existingCustomer = customers[existingIndex];
+                
+                // Compare dates to keep the newer one
+                const finalDate = compareDates(newCustomer.orderDate, existingCustomer.orderDate);
+                
+                customers[existingIndex] = {
+                    ...existingCustomer,
+                    name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
+                    orderDate: finalDate,
+                    lastUpdated: new Date().toISOString()
+                };
+            } else {
+                // New customer - add to array
+                customers.push({
+                    ...newCustomer,
+                    id: Date.now().toString(),
+                    lastUpdated: new Date().toISOString()
+                });
+            }
+            
+            saveCustomersToStorage(customers);
+            renderCustomerTable(customers);
+            
+            // Sync with Google Sheets
+            syncWithGoogleSheets('update', customers)
+                .then(success => {
+                    if (!success) {
+                        console.log('Offline mode: Data saved locally only');
+                    } else {
+                        console.log('Data synced with Google Sheets');
+                    }
+                });
+            
+            return existingIndex !== -1 ? 'updated' : 'added';
+        }
+        
+        function deleteCustomer(customerId) {
+            let customers = getCustomersFromStorage();
+            customers = customers.filter(c => c.id !== customerId);
+            saveCustomersToStorage(customers);
+            renderCustomerTable(customers);
+            
+            // Sync with Google Sheets
+            syncWithGoogleSheets('update', customers);
+        }
+        
+        function renderCustomerTable(customers) {
+            const tbody = document.querySelector('#customerTable tbody');
+            tbody.innerHTML = '';
+            
+            if (customers.length === 0) {
+                tbody.innerHTML = `<tr>
+                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">No customers found</td>
+                </tr>`;
+                return;
+            }
+            
+            customers.sort((a, b) => {
+                const [d1, m1, y1] = a.orderDate.split('/');
+                const [d2, m2, y2] = b.orderDate.split('/');
+                return new Date(y1, m1 - 1, d1) < new Date(y2, m2 - 1, d2) ? 1 : -1;
+            });
+            
+            customers.forEach((customer, index) => {
+                const row = document.createElement('tr');
+                row.className = index % 2 === 0 ? 'bg-gray-50' : 'bg-white';
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${index + 1}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${customer.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${customer.whatsapp}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${customer.orderDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <button onclick="deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900 font-medium">Delete</button>
+                    </td>
+                `;
+                
+                tbody.appendChild(row);
+            });
+        }
+        
+        function searchCustomers() {
+            const searchTerm = document.getElementById('search').value.toLowerCase();
+            if (!searchTerm) {
+                renderCustomerTable(getCustomersFromStorage());
+                return;
+            }
+            
+            const customers = getCustomersFromStorage();
+            const results = customers.filter(customer => 
+                customer.name.toLowerCase().includes(searchTerm) ||
+                customer.whatsapp.includes(searchTerm) ||
+                customer.orderDate.includes(searchTerm)
+            );
+            
+            renderCustomerTable(results);
+        }
+        
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            // Load existing customers
+            renderCustomerTable(getCustomersFromStorage());
+            
+            // Form submission
+            document.getElementById('customerForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const name = document.getElementById('name').value.trim();
+                const whatsapp = document.getElementById('whatsapp').value.trim();
+                let orderDate = document.getElementById('orderDate').value;
+                
+                // Validate WhatsApp number format
+                if (!/^\+?\d{10,15}$/.test(whatsapp)) {
+                    Swal.fire({
+                        title: 'Invalid WhatsApp Number',
+                        text: 'Please enter a valid WhatsApp number (10-15 digits with optional + prefix)',
+                        icon: 'error',
+                        confirmButtonColor: '#4ade80'
+                    });
+                    return;
+                }
+                
+                // Ensure date is not in the future
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const selectedDate = new Date(orderDate);
+                
+                if (selectedDate > today) {
+                    Swal.fire({
+                        title: 'Future Date Detected',
+                        text: 'Order date cannot be in the future. Please select a valid date.',
+                        icon: 'error',
+                        confirmButtonColor: '#4ade80'
+                    });
+                    return;
+                }
+                
+                const customer = { name, whatsapp, orderDate };
+                const action = addOrUpdateCustomer(customer);
+                
+                // Show success message
+                Swal.fire({
+                    title: action === 'updated' ? 'Customer Updated!' : 'Customer Added!',
+                    text: action === 'updated' 
+                        ? 'The customer has been updated with the latest information.' 
+                        : 'The new customer has been added successfully.',
+                    icon: 'success',
+                    confirmButtonColor: '#4ade80'
+                });
+                
+                // Reset form
+                document.getElementById('customerForm').reset();
+            });
+            
+            // Search functionality
+            document.getElementById('search').addEventListener('input', searchCustomers);
+            
+            // Initial sync with Google Sheets
+            syncWithGoogleSheets('getAll', null)
+                .then(customers => {
+                    if (customers && customers.length > 0) {
+                        saveCustomersToStorage(customers);
+                        renderCustomerTable(customers);
+                    }
+                });
+        });
+    </script>
+</body>
+</html>

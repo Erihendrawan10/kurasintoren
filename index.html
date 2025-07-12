@@ -313,6 +313,7 @@
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const selectedDate = new Date(orderDate);
+                selectedDate.setHours(0, 0, 0, 0); // Setel waktu ke 00:00:00
 
                 if (selectedDate > today) {
                     Swal.fire({

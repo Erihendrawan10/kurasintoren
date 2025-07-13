@@ -168,14 +168,21 @@
                         return 'not updated'; // Return a specific status
                     }
 
-                    // Increment order count
+                    // Prepare updated customer data
                     const updatedCustomerData = {
                         ...existingCustomer,
                         name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
+                        whatsapp: newCustomer.whatsapp.toLowerCase() !== existingCustomer.whatsapp.toLowerCase() ? newCustomer.whatsapp : existingCustomer.whatsapp,
                         orderDate: formattedDate,
-                        orderCount: (existingCustomer.orderCount || 0) + 1, // Increment order count
                         lastUpdated: new Date().toISOString()
                     };
+
+                    // Only increment order count if the order date is newer
+                    if (new Date(newCustomer.orderDate) > new Date(existingCustomer.orderDate)) {
+                        updatedCustomerData.orderCount = (existingCustomer.orderCount || 0) + 1; // Increment order count
+                    } else {
+                        updatedCustomerData.orderCount = existingCustomer.orderCount; // Keep the existing order count
+                    }
 
                     await customersCollection.doc(existingDoc.id).update(updatedCustomerData);
                     console.log('Customer updated in Firestore:', updatedCustomerData);

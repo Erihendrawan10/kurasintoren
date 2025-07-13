@@ -145,28 +145,43 @@
         }
 
         async function addOrUpdateCustomer(newCustomer) {
-            const formattedDate = formatDate(newCustomer.orderDate);
-            newCustomer.orderDate = formattedDate;
+    const formattedDate = formatDate(newCustomer.orderDate);
+    newCustomer.orderDate = formattedDate;
 
-            try {
-                // Check for existing customer with the same WhatsApp number
-                const querySnapshot = await customersCollection.where('whatsapp', '==', newCustomer.whatsapp).get();
+    try {
+        // Check for existing customer with the same WhatsApp number
+        const querySnapshot = await customersCollection.where('whatsapp', '==', newCustomer.whatsapp).get();
 
-                if (!querySnapshot.empty) {
-                    // Customer exists - update data
-                    const existingDoc = querySnapshot.docs[0];
-                    const existingCustomer = existingDoc.data();
+        if (!querySnapshot.empty) {
+            // Customer exists - update data
+            const existingDoc = querySnapshot.docs[0];
+            const existingCustomer = existingDoc.data();
 
-                    // Check if the new order date is older than the existing order date
-                    if (new Date(newCustomer.orderDate) < new Date(existingCustomer.orderDate)) {
-                        Swal.fire({
-                            title: 'Order Date Not Updated',
-                            text: 'The new order date cannot be older than the existing order date.',
-                            icon: 'info',
-                            confirmButtonColor: '#4ade80'
-                        });
-                        return 'not updated'; // Return a specific status
-                    }
+            // [BAGIAN YANG PERLU DIMODIFIKASI]
+            // Bandingkan tanggal order yang baru dengan yang sudah ada
+            const existingDate = new Date(existingCustomer.orderDate.split('/').reverse().join('-'));
+            const newDate = new Date(newCustomer.orderDate.split('/').reverse().join('-'));
+
+            if (newDate > existingDate) {
+                // Jika tanggal baru lebih baru, lanjut update
+                console.log("Update data customer");
+            } else if (newDate.getTime() === existingDate.getTime()) {
+                // Jika tanggal sama
+                Swal.fire({
+                    title: 'Same Order Date',
+                    text: 'Customer already has an order with the same date.',
+                    icon: 'info'
+                });
+                return 'not updated';
+            } else {
+                // Jika tanggal baru lebih lama
+                Swal.fire({
+                    title: 'Repeat Order',
+                    text: 'Customer already has a newer order date. Data not updated.',
+                    icon: 'info'
+                });
+                return 'not updated';
+            }
 
                     // Prepare updated customer data
                     const updatedCustomerData = {

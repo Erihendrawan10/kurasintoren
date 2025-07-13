@@ -255,9 +255,9 @@
 
         async function loadCustomersAndRenderTable() {
             try {
-                const snapshot = await customersCollection.orderBy('orderDate', 'desc').get();
+                const snapshot = await customersCollection.orderBy('orderDate', 'asc').get(); // Mengambil data dengan urutan menaik
                 const customers = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-                renderCustomerTable(customers);
+                renderCustomerTable(customers.reverse()); // Membalikkan array agar data terbaru di atas
                 saveCustomersToStorage(customers);
             } catch (error) {
                 console.error('Error loading customers from Firestore:', error);

@@ -143,8 +143,7 @@
             const year = date.getFullYear();
             return `${day}/${month}/${year}`;
         }
-
-        async function addOrUpdateCustomer(newCustomer) {
+async function addOrUpdateCustomer(newCustomer) {
     const formattedDate = formatDate(newCustomer.orderDate);
     newCustomer.orderDate = formattedDate;
 
@@ -157,66 +156,61 @@
             const existingDoc = querySnapshot.docs[0];
             const existingCustomer = existingDoc.data();
 
-            // [BAGIAN YANG PERLU DIMODIFIKASI]
             // Bandingkan tanggal order yang baru dengan yang sudah ada
             const existingDate = new Date(existingCustomer.orderDate.split('/').reverse().join('-'));
             const newDate = new Date(newCustomer.orderDate.split('/').reverse().join('-'));
 
-            if (newDate > existingDate) {
-                // Jika tanggal baru lebih baru, lanjut update
-                console.log("Update data customer");
-            } else if (newDate.getTime() === existingDate.getTime()) {
-                // Jika tanggal sama
+            if (newDate.getTime() === existingDate.getTime()) {
+                // Jika tanggal sama, tidak perlu update order count
                 Swal.fire({
                     title: 'Same Order Date',
-                    text: 'Customer already has an order with the same date.',
+                    text: 'Customer already has an order with the same date. Order count will not be updated.',
+                    icon: 'info'
+                });
+                return 'not updated';
+            } else if (newDate < existingDate) {
+                // Jika tanggal baru lebih lama, tidak update
+                Swal.fire({
+                    title: 'Older Order Date',
+                    text: 'The new order date is older than the existing order date. Data will not be updated.',
                     icon: 'info'
                 });
                 return 'not updated';
             } else {
-                // Jika tanggal baru lebih lama
-                Swal.fire({
-                    title: 'Repeat Order',
-                    text: 'Customer already has a newer order date. Data not updated.',
-                    icon: 'info'
-                });
-                return 'not updated';
+                // Jika tanggal baru lebih baru, lanjut update
+                console.log("Update data customer");
+
+                // Prepare updated customer data
+                const updatedCustomerData = {
+                    ...existingCustomer,
+                    name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
+                    whatsapp: newCustomer.whatsapp.toLowerCase() !== existingCustomer.whatsapp.toLowerCase() ? newCustomer.whatsapp : existingCustomer.whatsapp,
+                    orderDate: formattedDate,
+                    lastUpdated: new Date().toISOString()
+                };
+
+                // Increment order count only if the order date is different
+                updatedCustomerData.orderCount = (existingCustomer.orderCount || 0) + 1; // Increment order count
+
+                await customersCollection.doc(existingDoc.id).update(updatedCustomerData);
+                console.log('Customer updated in Firestore:', updatedCustomerData);
+                return 'updated';
             }
-
-                    // Prepare updated customer data
-                    const updatedCustomerData = {
-                        ...existingCustomer,
-                        name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
-                        whatsapp: newCustomer.whatsapp.toLowerCase() !== existingCustomer.whatsapp.toLowerCase() ? newCustomer.whatsapp : existingCustomer.whatsapp,
-                        orderDate: formattedDate,
-                        lastUpdated: new Date().toISOString()
-                    };
-
-                    // Only increment order count if the order date is newer
-                    if (new Date(newCustomer.orderDate) > new Date(existingCustomer.orderDate)) {
-                        updatedCustomerData.orderCount = (existingCustomer.orderCount || 0) + 1; // Increment order count
-                    } else {
-                        updatedCustomerData.orderCount = existingCustomer.orderCount; // Keep the existing order count
-                    }
-
-                    await customersCollection.doc(existingDoc.id).update(updatedCustomerData);
-                    console.log('Customer updated in Firestore:', updatedCustomerData);
-                    return 'updated';
-                } else {
-                    // New customer - add to Firestore
-                    const docRef = await customersCollection.add({
-                        ...newCustomer,
-                        orderCount: 1, // Set initial order count
-                        lastUpdated: new Date().toISOString()
-                    });
-                    console.log('New customer added to Firestore with ID:', docRef.id);
-                    return 'added';
-                }
-            } catch (error) {
-                console.error('Error adding/updating customer in Firestore:', error);
-                return 'error';
-            }
+        } else {
+            // New customer - add to Firestore
+            const docRef = await customersCollection.add({
+                ...newCustomer,
+                orderCount: 1, // Set initial order count
+                lastUpdated: new Date().toISOString()
+            });
+            console.log('New customer added to Firestore with ID:', docRef.id);
+            return 'added';
         }
+    } catch (error) {
+        console.error('Error adding/updating customer in Firestore:', error);
+        return 'error';
+    }
+}
 
         async function deleteCustomer(docId) {
             const result = await Swal.fire({

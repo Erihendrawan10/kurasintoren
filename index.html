@@ -80,33 +80,6 @@
                 </button>
             </div>
 
-            <div class="mb-4">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Export Customers</h2>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                        <label for="startDate" class="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                        <input type="date" id="startDate" class="w-full px-4 py-2 border border-gray-300 rounded-md">
-                    </div>
-                    <div>
-                        <label for="endDate" class="block text-sm font-medium text-gray-700 mb-1">End Date</label>
-                        <input type="date" id="endDate" class="w-full px-4 py-2 border border-gray-300 rounded-md">
-                    </div>
-                    <div class="md:col-span-3">
-                        <button id="exportCustomers" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-300 w-full md:w-auto">
-                            Export Customers
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <div class="mb-4">
-                <h2 class="text-xl font-semibold mb-4 text-gray-700">Import Customers</h2>
-                <input type="file" id="importFile" accept=".json" class="mb-4">
-                <button id="importCustomers" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-md transition duration-300">
-                    Import Customers
-                </button>
-            </div>
-
             <div class="overflow-x-auto">
                 <table id="customerTable" class="w-full responsive-table">
                     <thead class="bg-gray-100">
@@ -170,75 +143,74 @@
             const year = date.getFullYear();
             return `${day}/${month}/${year}`;
         }
+async function addOrUpdateCustomer(newCustomer) {
+    const formattedDate = formatDate(newCustomer.orderDate);
+    newCustomer.orderDate = formattedDate;
 
-        async function addOrUpdateCustomer(newCustomer) {
-            const formattedDate = formatDate(newCustomer.orderDate);
-            newCustomer.orderDate = formattedDate;
+    try {
+        // Check for existing customer with the same WhatsApp number
+        const querySnapshot = await customersCollection.where('whatsapp', '==', newCustomer.whatsapp).get();
 
-            try {
-                // Check for existing customer with the same WhatsApp number
-                const querySnapshot = await customersCollection.where('whatsapp', '==', newCustomer.whatsapp).get();
+        if (!querySnapshot.empty) {
+            // Customer exists - update data
+            const existingDoc = querySnapshot.docs[0];
+            const existingCustomer = existingDoc.data();
 
-                if (!querySnapshot.empty) {
-                    // Customer exists - update data
-                    const existingDoc = querySnapshot.docs[0];
-                    const existingCustomer = existingDoc.data();
+            // Bandingkan tanggal order yang baru dengan yang sudah ada
+            const existingDate = new Date(existingCustomer.orderDate.split('/').reverse().join('-'));
+            const newDate = new Date(newCustomer.orderDate.split('/').reverse().join('-'));
 
-                    // Compare new order date with existing one
-                    const existingDate = new Date(existingCustomer.orderDate.split('/').reverse().join('-'));
-                    const newDate = new Date(newCustomer.orderDate.split('/').reverse().join('-'));
+            if (newDate.getTime() === existingDate.getTime()) {
+                // Jika tanggal sama, tidak perlu update order count
+                Swal.fire({
+                    title: 'Same Order Date',
+                    text: 'Customer already has an order with the same date. Order count will not be updated.',
+                    icon: 'info'
+                });
+                return 'not updated';
+            } else if (newDate < existingDate) {
+                // Jika tanggal baru lebih lama, tidak update
+                Swal.fire({
+                    title: 'Older Order Date',
+                    text: 'The new order date is older than the existing order date. Data will not be updated.',
+                    icon: 'info'
+                });
+                return 'not updated';
+            } else {
+                // Jika tanggal baru lebih baru, lanjut update
+                console.log("Update data customer");
 
-                    if (newDate.getTime() === existingDate.getTime()) {
-                        // If dates are the same, do not update order count
-                        Swal.fire({
-                            title: 'Same Order Date',
-                            text: 'Customer already has an order with the same date. Order count will not be updated.',
-                            icon: 'info'
-                        });
-                        return 'not updated';
-                    } else if (newDate < existingDate) {
-                        // If new date is older, do not update
-                        Swal.fire({
-                            title: 'Older Order Date',
-                            text: 'The new order date is older than the existing order date. Data will not be updated.',
-                            icon: 'info'
-                        });
-                        return 'not updated';
-                    } else {
-                        // If new date is newer, proceed to update
-                        console.log("Update customer data");
+                // Prepare updated customer data
+                const updatedCustomerData = {
+                    ...existingCustomer,
+                    name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
+                    whatsapp: newCustomer.whatsapp.toLowerCase() !== existingCustomer.whatsapp.toLowerCase() ? newCustomer.whatsapp : existingCustomer.whatsapp,
+                    orderDate: formattedDate,
+                    lastUpdated: new Date().toISOString()
+                };
 
-                        // Prepare updated customer data
-                        const updatedCustomerData = {
-                            ...existingCustomer,
-                            name: newCustomer.name.toLowerCase() !== existingCustomer.name.toLowerCase() ? newCustomer.name : existingCustomer.name,
-                            whatsapp: newCustomer.whatsapp.toLowerCase() !== existingCustomer.whatsapp.toLowerCase() ? newCustomer.whatsapp : existingCustomer.whatsapp,
-                            orderDate: formattedDate,
-                            lastUpdated: new Date().toISOString()
-                        };
+                // Increment order count only if the order date is different
+                updatedCustomerData.orderCount = (existingCustomer.orderCount || 0) + 1; // Increment order count
 
-                        // Increment order count only if the order date is different
-                        updatedCustomerData.orderCount = (existingCustomer.orderCount || 0) + 1; // Increment order count
-
-                        await customersCollection.doc(existingDoc.id).update(updatedCustomerData);
-                        console.log('Customer updated in Firestore:', updatedCustomerData);
-                        return 'updated';
-                    }
-                } else {
-                    // New customer - add to Firestore
-                    const docRef = await customersCollection.add({
-                        ...newCustomer,
-                        orderCount: 1, // Set initial order count
-                        lastUpdated: new Date().toISOString()
-                    });
-                    console.log('New customer added to Firestore with ID:', docRef.id);
-                    return 'added';
-                }
-            } catch (error) {
-                console.error('Error adding/updating customer in Firestore:', error);
-                return 'error';
+                await customersCollection.doc(existingDoc.id).update(updatedCustomerData);
+                console.log('Customer updated in Firestore:', updatedCustomerData);
+                return 'updated';
             }
+        } else {
+            // New customer - add to Firestore
+            const docRef = await customersCollection.add({
+                ...newCustomer,
+                orderCount: 1, // Set initial order count
+                lastUpdated: new Date().toISOString()
+            });
+            console.log('New customer added to Firestore with ID:', docRef.id);
+            return 'added';
         }
+    } catch (error) {
+        console.error('Error adding/updating customer in Firestore:', error);
+        return 'error';
+    }
+}
 
         async function deleteCustomer(docId) {
             const result = await Swal.fire({
@@ -292,9 +264,9 @@
 
         async function loadCustomersAndRenderTable() {
             try {
-                const snapshot = await customersCollection.orderBy('orderDate', 'asc').get(); // Fetch data in ascending order
+                const snapshot = await customersCollection.orderBy('orderDate', 'asc').get(); // Mengambil data dengan urutan menaik
                 const customers = snapshot.docs.map(doc => ({ docId: doc.id, ...doc.data() }));
-                renderCustomerTable(customers.reverse()); // Reverse array to show latest data on top
+                renderCustomerTable(customers.reverse()); // Membalikkan array agar data terbaru di atas
                 saveCustomersToStorage(customers);
             } catch (error) {
                 console.error('Error loading customers from Firestore:', error);
@@ -374,19 +346,74 @@
             }
         }
 
-        async function exportCustomers() {
-            const startDate = document.getElementById('startDate').value;
-            const endDate = document.getElementById('endDate').value;
+        // Initialize the app
+        document.addEventListener('DOMContentLoaded', () => {
+            loadCustomersAndRenderTable();
 
-            if (!startDate || !endDate) {
-                Swal.fire({
-                    title: 'Invalid Date Range',
-                    text: 'Please select both start and end dates.',
-                    icon: 'error',
-                    confirmButtonColor: '#4ade80'
-                });
-                return;
-            }
+            document.getElementById('customerForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
 
-            try {
-                const snapshot = await customersCollection.where('orderDate', '>=', startDate).where('orderDate',
+                const name = document.getElementById('name').value.trim();
+                const whatsapp = document.getElementById('whatsapp').value.trim();
+                let orderDate = document.getElementById('orderDate').value;
+
+                // Validate WhatsApp number format
+                if (!/^\+?\d{10,15}$/.test(whatsapp)) {
+                    Swal.fire({
+                        title: 'Invalid WhatsApp Number',
+                        text: 'Please enter a valid WhatsApp number (10-15 digits with optional + prefix)',
+                        icon: 'error',
+                        confirmButtonColor: '#4ade80'
+                    });
+                    return;
+                }
+
+                // Ensure date is not in the future
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const selectedDate = new Date(orderDate);
+                selectedDate.setHours(0, 0, 0, 0);
+
+                if (selectedDate > today) {
+                    Swal.fire({
+                        title: 'Future Date Detected',
+                        text: 'Order date cannot be in the future. Please select a valid date.',
+                        icon: 'error',
+                        confirmButtonColor: '#4ade80'
+                    });
+                    return;
+                }
+
+                const customer = { name, whatsapp, orderDate };
+                const action = await addOrUpdateCustomer(customer);
+
+                if (action === 'error') {
+                    Swal.fire({
+                        title: 'Error!',
+                        text: 'There was an error saving the customer data. Please try again.',
+                        icon: 'error',
+                        confirmButtonColor: '#dc3545'
+                    });
+                } else if (action === 'not updated') {
+                    // Do nothing, notification already shown in addOrUpdateCustomer
+                } else {
+                    Swal.fire({
+                        title: action === 'updated' ? 'Customer Updated!' : 'Customer Added!',
+                        text: action === 'updated'
+                            ? 'The customer has been updated with the latest information.'
+                            : 'The new customer has been added successfully.',
+                        icon: 'success',
+                        confirmButtonColor: '#4ade80'
+                    });
+                    loadCustomersAndRenderTable();
+                }
+
+                document.getElementById('customerForm').reset();
+            });
+
+            document.getElementById('search').addEventListener('input', searchCustomers);
+            document.getElementById('deleteSelected').addEventListener('click', deleteSelectedCustomers);
+        });
+    </script>
+</body>
+</html>
